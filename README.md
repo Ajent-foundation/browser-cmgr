@@ -1,4 +1,8 @@
-<h1 align="center">Browser Container Manager <br/> Docker-based</h1>
+<p align="center">
+  <img src="./images/tasknet-color@2x.png" alt="TaskNet Logo" width="300"/>
+</p>
+
+<h1 align="center">Browser Container Manager</h1>
 
 [![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)](https://www.typescriptlang.org/)

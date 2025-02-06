@@ -46,7 +46,6 @@ type Config = {
     baseBrowserPort: number
     baseBrowserAppPort: number
     baseBrowserVncPort: number
-    isSudo: boolean
     screenResolution?: string
     launchArgs?: Record<string, string>
     maxRetries: number
@@ -55,6 +54,7 @@ type Config = {
         width: number
         height: number
     }
+    additionalDockerArgs: Record<string, string>
 }
 
 /**
@@ -289,7 +289,12 @@ export default class BrowserManager {
             '15900': String(this._config.baseBrowserVncPort + index)
         }
 
-        const dockerCommand = `run -d --rm --name ${browserName} ${
+        let additionalDockerArgs = ""
+        if(this._config.additionalDockerArgs) {
+            additionalDockerArgs = Object.entries(this._config.additionalDockerArgs).map(([key, value]) => `--${key}=${value}`).join(' ')
+        }
+
+        const dockerCommand = `run -d --rm ${additionalDockerArgs} --name ${browserName} ${
             Object.entries(envs).map(([key, value]) => `-e ${key}=${value}`).join(' ')
         } ${
             Object.entries(ports).map(([container, host]) => `-p ${host}:${container}`).join(' ')

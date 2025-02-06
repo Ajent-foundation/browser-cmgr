@@ -13,7 +13,7 @@ import DefaultRoutesHandler from "./routes"
 let httpServer: Server | undefined
 let browserManager: BrowserManager | undefined
 
-export async function main(deployment: string, logPath?: string) {
+export async function main(deployment: string, logPath?: string, additionalDockerArgs?: Record<string, string>) {
     setDefaults({
         // Core Defaults
         SERVICE_NAME: "browser-cmgr-ts",
@@ -36,7 +36,6 @@ export async function main(deployment: string, logPath?: string) {
         TEST_BROWSER_MAX_TRIES: "15",
         KILL_WAIT_TIME: "2 * 1000",
         KILL_MAX_TRIES: "10",
-        IS_SUDO: "true",
     })
 
     // III -  Init Logger
@@ -60,7 +59,6 @@ export async function main(deployment: string, logPath?: string) {
         baseBrowserPort: parseInt(process.env.BASE_BROWSER_PORT as string),
         baseBrowserAppPort: parseInt(process.env.BASE_BROWSER_APP_PORT as string),
         baseBrowserVncPort: parseInt(process.env.BASE_BROWSER_VNC_PORT as string),
-        isSudo: process.env.IS_SUDO === 'true',
         browserPrefix: process.env.CONTAINER_PREFIX as string,
         launchArgs: {},
         maxRetries: parseInt(process.env.KILL_MAX_TRIES as string),
@@ -68,7 +66,8 @@ export async function main(deployment: string, logPath?: string) {
         resolution: {
             width: parseInt((process.env.SCREEN_RESOLUTION|| "1280x2400").split("x")[0]),
             height: parseInt((process.env.SCREEN_RESOLUTION|| "1280x2400").split("x")[1])
-        }
+        },
+        additionalDockerArgs: additionalDockerArgs || {}
     }, Logger)
     await browserManager.init()
 

@@ -104,7 +104,7 @@ export default class BrowserManager {
 
         const dockerEnv = this.buildDockerEnvironment()
         this._docker = new Docker({
-            echo: true,
+            echo: false,
             env: dockerEnv
         })
     }
@@ -191,7 +191,9 @@ export default class BrowserManager {
 
         // Pull Image 
         if(pullOnStart) {
+            this._logger.info(`Pulling image ${this._config.browserImageName}`)
             await this._docker.command(`pull ${this._config.browserImageName}`)
+            this._logger.info(`Pulled image ${this._config.browserImageName}`)
         }
 
         for (let i = 0; i < this._config.numBrowsers; i++) {

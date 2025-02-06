@@ -21,7 +21,7 @@ export async function main(deployment: string, logPath?: string) {
         EXPRESS_PORT: "8200",
 
         // Browser Defaults
-        BROWSER_IMAGE_NAME: "browser-node-ts",
+        BROWSER_IMAGE_NAME: "ghcr.io/ajent-foundation/browser-node:latest-brave",
         NUM_BROWSERS: "4",
         HOSTIP: "0.0.0.0",
         BASE_BROWSER_PORT: "10222",

@@ -104,7 +104,7 @@ export default class BrowserManager {
 
         const dockerEnv = this.buildDockerEnvironment()
         this._docker = new Docker({
-            echo: false,
+            echo: true,
             env: dockerEnv
         })
     }

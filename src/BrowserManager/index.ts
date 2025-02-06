@@ -163,7 +163,7 @@ export default class BrowserManager {
      * Checks Docker availability and sets up initial browser containers
      * @throws Error if Docker is not running after max attempts
      */
-    public async init(): Promise<void> {
+    public async init(pullOnStart: boolean = false): Promise<void> {
         // Check if docker is running with retries
         let dockerRunning = false;
         let dockerCheckAttempts = 0;
@@ -187,6 +187,11 @@ export default class BrowserManager {
 
         if(!dockerRunning) {
             throw new Error("Docker is not running")
+        }
+
+        // Pull Image 
+        if(pullOnStart) {
+            await this._docker.command(`pull ${this._config.browserImageName}`)
         }
 
         for (let i = 0; i < this._config.numBrowsers; i++) {
@@ -294,7 +299,7 @@ export default class BrowserManager {
             additionalDockerArgs = Object.entries(this._config.additionalDockerArgs).map(([key, value]) => `--${key}=${value}`).join(' ')
         }
 
-        const dockerCommand = `run -d --rm ${additionalDockerArgs} --name ${browserName} ${
+        const dockerCommand = `run -d --pull never --rm ${additionalDockerArgs} --name ${browserName} ${
             Object.entries(envs).map(([key, value]) => `-e ${key}=${value}`).join(' ')
         } ${
             Object.entries(ports).map(([container, host]) => `-p ${host}:${container}`).join(' ')

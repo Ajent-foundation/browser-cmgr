@@ -13,7 +13,12 @@ import DefaultRoutesHandler from "./routes"
 let httpServer: Server | undefined
 let browserManager: BrowserManager | undefined
 
-export async function main(deployment: string, logPath?: string, additionalDockerArgs?: Record<string, string>) {
+export async function main(
+    deployment: string, 
+    logPath?: string, 
+    additionalDockerArgs?: Record<string, string>, 
+    pullOnStart: boolean = true
+) {
     setDefaults({
         // Core Defaults
         SERVICE_NAME: "browser-cmgr-ts",
@@ -69,7 +74,7 @@ export async function main(deployment: string, logPath?: string, additionalDocke
         },
         additionalDockerArgs: additionalDockerArgs || {}
     }, Logger)
-    await browserManager.init()
+    await browserManager.init(pullOnStart)
 
     // VI- Init Express
     const EXPRESS_PORT= expressVars.getExpressPort()

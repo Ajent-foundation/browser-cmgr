@@ -25,6 +25,7 @@ export const BodySchema = z.object({
     proxyServer: z.string().optional(),
     proxyAuth: z.string().optional(),
     isDebug: z.boolean().optional(),
+    //Deprecated
     viewport: z.object({
         width: z.number(),
         height: z.number()
@@ -35,6 +36,20 @@ export const BodySchema = z.object({
     isExtending: z.boolean().optional(),
     vncMode: z.enum(["ro", "rw"]).optional(),
     isPasswordProtected: z.boolean().optional(),
+    numberOfCameras: z.number().min(1).max(4).optional(),
+ 	numberOfMicrophones: z.number().min(1).max(4).optional(),
+ 	numberOfSpeakers: z.number().min(1).max(4).optional(),
+ 	locale: z.string().optional(),
+ 	language: z.string().optional(),
+ 	timezone: z.string().optional(),
+ 	platform: z.enum(["win32", "linux", "darwin"]).optional(),
+ 	extensions: z.array(z.string()).optional(),
+ 	overrideUserAgent: z.string().optional(),
+    screen: z.object({
+        resolution: z.enum(["1280x1024", "1920x1080", "1366x768", "1536x864", "1280x720", "1440x900", "1280x2400"]),
+        depth: z.string(),
+        dpi: z.string()
+    }).optional(),
 })
 
 // Request Query
@@ -61,7 +76,8 @@ const handler = new Endpoint<
     ) => {
         let {
             browserID, leaseTime, proxyServer, proxyAuth, sessionID, clientID, 
-            fingerprintID, callbackURL, driver, reportKey, sessionUUID, vncMode, isPasswordProtected
+            fingerprintID, callbackURL, driver, reportKey, sessionUUID, vncMode, isPasswordProtected,
+            numberOfCameras, numberOfMicrophones, numberOfSpeakers, locale, language, timezone, platform, extensions, overrideUserAgent, screen
         } = BodySchema.parse(req.body)
 
         if(!vncMode || (vncMode !== "ro" && vncMode !== "rw")) {
@@ -121,12 +137,23 @@ const handler = new Endpoint<
                     const requestBody : Record<string, any> = {
                         leaseTime: leaseTime,
                         screen: {
-                            resolution: process.env.SCREEN_RESOLUTION || "1280x2400"
+                            resolution: screen?.resolution || process.env.SCREEN_RESOLUTION || "1280x2400",
+                            depth: screen?.depth || process.env.SCREEN_DEPTH || "24",
+                            dpi: screen?.dpi || process.env.SCREEN_DPI || "96"
                         },
                         vnc: {
                             mode : vncMode,
                             isPasswordProtected : isPasswordProtected
-                        }
+                        },
+                        numberOfCameras,
+                        numberOfMicrophones,
+                        numberOfSpeakers,
+                        locale,
+                        language,
+                        timezone,
+                        platform,
+                        extensions,
+                        overrideUserAgent
                     }
                     if(req.body.proxyServer){
                         requestBody["proxy"] = {
@@ -222,8 +249,11 @@ const handler = new Endpoint<
                 await res.locals.browserManager.setDebug(browser.name, req.body.isDebug)
             }
 
-            if(req.body.viewport){
-                await res.locals.browserManager.setViewport(browser.name, req.body.viewport)
+            if(req.body.screen){
+                await res.locals.browserManager.setViewport(browser.name, {
+                    width: parseInt(req.body.screen.resolution.split("x")[0]),
+                    height: parseInt(req.body.screen.resolution.split("x")[1])
+                })
             } else {
                 await res.locals.browserManager.setDefaultViewport(browser.name)
             }

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>VNC Viewer</title>
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <body>
+        <div id="main__content">
+            <div class="flex_container"> 
+                <div id="Infobar">
+                    <div class="info__container">
+                        <p>
+                            Capacity:
+                        </p>
+                        <p id="capacity__value">
+                            0
+                        </p>
+                    </div>
+                </div>
+                <div id="Browsers__container">
+                </div>
+                <canvas id="browser__vnc__canvas" width="800" height="600"></canvas>
+            </div>
+
+            <div class="overlay">
+                <div class="vnc__screen">
+                    <div id="top_bar">
+                        <div id="status">Loading</div>
+                        <button id="top_bar_close">close</button>
+                    </div>
+                    <div id="screen">
+                        <!-- This> is where the remote screen will appear -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@hostnet/novnc@1.0.0/dist/novnc.min.js"></script>
+        <script type="module">
+            const BASE_IP = "http://localhost"
+            const POC_PORT = 8200
+            let rfb
+            let desktopName
+
+            // When this function is called we have
+            // successfully connected to a server
+            function connectedToServer(e) {
+                status("Connected to " + desktopName)
+            }
+
+            // This function is called when we are disconnected
+            function disconnectedFromServer(e) {
+                if (e.detail.clean) {
+                    status("Disconnected")
+                } else {
+                    status("Something went wrong, connection is closed")
+                }
+            }
+
+            // When this function is called, the server requires
+            // credentials to authenticate
+            function credentialsAreRequired(e) {
+                const password = prompt("Password Required:")
+                rfb.sendCredentials({ password: password })
+            }
+
+            // When this function is called we have received
+            // a desktop name from the server
+            function updateDesktopName(e) {
+                desktopName = e.detail.name
+            }
+
+            // Show a status text in the top bar
+            function status(text) {
+                document.getElementById('status').textContent = text
+            }
+
+            function viewVNC(port) {
+                $(".overlay").css("z-index", "1")
+
+                // Creating a new RFB object will start a new connection
+                rfb = new RFB(
+                    document.getElementById('screen'), 
+                    `ws://${BASE_IP.replace("http://", "")}:${port}`,
+                    //{ credentials: { password: password } }
+                )
+
+                // Add listeners to important events from the RFB module
+                rfb.addEventListener("connect",  connectedToServer)
+                rfb.addEventListener("disconnect", disconnectedFromServer)
+                rfb.addEventListener("credentialsrequired", credentialsAreRequired)
+                rfb.addEventListener("desktopname", updateDesktopName)
+
+                // Set parameters that can be changed on an active connection
+                rfb.viewOnly = false
+                rfb.scaleViewport = false   
+            }
+
+            function generateBrowsersBoxes(browsers){
+                console.log(browsers)
+                let htmlContent = ""
+
+                for (let browser of browsers){
+                    console.log(browser)
+                    // Constructing an HTML block for each browser object
+                    htmlContent += `
+                        <div class="browser-box" style="${browser.lastUsed === -1 ? 'background-color: #D2BAB1;' : 'background-color: #CCDDD3;'}">
+                            <h3>Browser-${browser.ports.browser}</h3>
+                            <p>${browser.vncPassword}</p>
+
+                            -------------------------------------------------
+                            <p>Last Used: ${browser.lastUsed > 0 ? new Date(browser.lastUsed).toLocaleString() : 'Never'}</p>
+                            <p>Lease: ${browser.leaseTime === -1 ? 'Not-Set' : `${browser.leaseTime} min`}</p>
+                            <p>Browser: ${browser.ports.browser}</p>
+                            <p>Express: ${browser.ports.app}</p>
+                            <p>VNC: ${browser.ports.vnc}</p>
+
+                            <button class="vnc__connect__button" data-vncport="${browser.ports.vnc}" style="${browser.lastUsed > 0 ? 'background: #4CAF50;cursor: pointer;' : 'background: #B48B7D;cursor: not-allowed;'}">Connect</button>
+                            <button id="shutdown__button" data-index="${browser.ports.vnc}" style="${browser.lastUsed > 0 ? 'display: flex;' : 'display: none;'}">close</button>
+                        </div>
+                    `
+                }
+
+                return htmlContent
+            }
+
+            function closeBrowser(index){
+                fetch(
+                    BASE_IP + `:${POC_PORT}` + "/freeBrowser",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({browserID: `browser-${index}`})
+                    }
+                )
+            }
+
+            function getDetailedBrowsersStatus(){
+                fetch(BASE_IP + `:${POC_PORT}` + "/detailedStatus")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success){
+                            $("#capacity__value").text(data.capacity)
+                            $("#Browsers__container").html(generateBrowsersBoxes(data.browsers))
+                            $(".vnc__connect__button").on("click", function() {
+                                const vncPort = $(this).data("vncport")
+                                viewVNC(vncPort)
+                            })
+                            $("#shutdown__button").on("click", function() {
+                                const index = $(this).data("index")
+                                closeBrowser(index)
+                            })
+                        }
+                    })
+                    .catch(error => {
+                        console.error(error)
+                    })
+            }
+
+            $(document).ready(() => {
+                status("None")
+                $("#top_bar_close").on("click", function() {
+                    $(".overlay").css("z-index", "-1")
+                    rfb.disconnect()
+                })
+
+                // Call Periodically
+                setInterval(getDetailedBrowsersStatus, 5000)
+                getDetailedBrowsersStatus()
+            })
+        </script>
+    </body>
+</html>

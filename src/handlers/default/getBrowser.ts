@@ -50,6 +50,7 @@ export const BodySchema = z.object({
         depth: z.string(),
         dpi: z.string()
     }).optional(),
+    vncVersion: z.enum(["legacy", "new"]).optional(),
 })
 
 // Request Query
@@ -77,8 +78,12 @@ const handler = new Endpoint<
         let {
             browserID, leaseTime, proxyServer, proxyAuth, sessionID, clientID, 
             fingerprintID, callbackURL, driver, reportKey, sessionUUID, vncMode, isPasswordProtected,
-            numberOfCameras, numberOfMicrophones, numberOfSpeakers, locale, language, timezone, platform, extensions, overrideUserAgent, screen
+            numberOfCameras, numberOfMicrophones, numberOfSpeakers, locale, language, timezone, platform, extensions, overrideUserAgent, screen, vncVersion
         } = BodySchema.parse(req.body)
+
+        if(!vncVersion) {
+            vncVersion = "legacy"
+        }
 
         if(!vncMode || (vncMode !== "ro" && vncMode !== "rw")) {
             vncMode = "ro"
@@ -153,7 +158,8 @@ const handler = new Endpoint<
                         timezone,
                         platform,
                         extensions,
-                        overrideUserAgent
+                        overrideUserAgent,
+                        vncVersion
                     }
                     if(req.body.proxyServer){
                         requestBody["proxy"] = {

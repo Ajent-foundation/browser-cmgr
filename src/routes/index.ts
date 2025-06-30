@@ -6,6 +6,7 @@ import defHandler from "../handlers"
 import getBrowserHandler from "../handlers/default/getBrowser"
 import freeBrowserHandler from "../handlers/default/freeBrowser"
 import getAllBrowserHandler from "../handlers/default/getAll"
+import getAllFromDockerHandler from "../handlers/default/getAllFromDocker"
 
 // The Routing Sheet
 const GROUP = "default"
@@ -22,6 +23,12 @@ ROUTES_TABLE.get(
 	"/detailedStatus",
     setResource(GROUP),
     getAllBrowserHandler
+)
+
+ROUTES_TABLE.get(
+	"/detailedDynamicStatus",
+    setResource(GROUP),
+    getAllFromDockerHandler
 )
 
 ROUTES_TABLE.post(

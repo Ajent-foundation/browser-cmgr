@@ -234,6 +234,150 @@ export default class BrowserManager {
         return Object.values(this._browsers);
     }
 
+    /**
+     * Gets browser information directly from Docker containers
+     * This is more dynamic and doesn't rely on cached information
+     */
+    public async getBrowsersFromDocker(): Promise<Browser[]> {
+        try {
+            // List all containers with our browser prefix
+            const dockerCommand = `ps -a --filter name=${this._config.browserPrefix} --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.CreatedAt}}" --no-trunc`;
+            const listResult = await this._docker.command(dockerCommand);
+            
+            if (!listResult.raw || listResult.raw.trim() === '') {
+                this._logger.info('No browser containers found in Docker');
+                
+                return [];
+            }
+
+            const lines = listResult.raw.trim().split('\n');
+            // Skip header line
+            const containerLines = lines.slice(1);
+            
+            const browsers: Browser[] = [];
+            
+            for (const line of containerLines) {
+                if (!line.trim()) continue;
+                
+                try {
+                    // The Docker table format uses multiple spaces as separators, not tabs
+                    // Let's parse it more carefully
+                    const trimmedLine = line.trim();
+                    
+                    // Split by multiple spaces to get the parts
+                    const parts = trimmedLine.split(/\s{2,}/);
+                    
+
+                    
+                    if (parts.length < 4) {
+                        this._logger.warn({ line: trimmedLine, partsCount: parts.length }, 'Line has insufficient parts');
+                        continue;
+                    }
+                    
+                    const containerName = parts[0].trim();
+                    const status = parts[1].trim();
+                    const ports = parts[2].trim();
+                    const createdAt = parts[3].trim();
+                    
+                    // Get detailed container information
+                    const inspectResult = await this._docker.command(`inspect ${containerName}`);
+                    const containerInfo = JSON.parse(inspectResult.raw)[0];
+                    
+                    // Extract browser index from container name
+                    const indexMatch = containerName.match(new RegExp(`${this._config.browserPrefix}-(\\d+)$`));
+                    const index = indexMatch ? parseInt(indexMatch[1]) - this._config.baseBrowserPort : 0;
+                    
+                    // Parse ports to get the actual port mappings
+                    const portMappings = this.parseDockerPorts(ports);
+                    
+                    // Determine if container is running
+                    const isUp = status.toLowerCase().includes('up');
+                    
+                    // Extract labels from container
+                    const labels = containerInfo.Config?.Labels || {};
+                    
+                    // Create browser object
+                    const browser: Browser = {
+                        name: containerName,
+                        index: index,
+                        isUp: isUp,
+                        isRemoving: status.toLowerCase().includes('removing'),
+                        lastUsed: labels.lastUsed ? parseInt(labels.lastUsed) : -1,
+                        createdAt: new Date(containerInfo.Created).getTime(),
+                        leaseTime: labels.leaseTime ? parseInt(labels.leaseTime) : -1,
+                        ports: {
+                            vnc: portMappings.vnc || (this._config.baseBrowserVncPort + index),
+                            app: portMappings.app || (this._config.baseBrowserAppPort + index),
+                            browser: portMappings.browser || (this._config.baseBrowserPort + index)
+                        },
+                        vncPassword: labels.vncPassword,
+                        isDebug: labels.isDebug === 'true',
+                        viewport: {
+                            width: labels.viewportWidth ? parseInt(labels.viewportWidth) : this._config.resolution.width,
+                            height: labels.viewportHeight ? parseInt(labels.viewportHeight) : this._config.resolution.height
+                        },
+                        labels: labels,
+                        webhook: labels.webhook || '',
+                        sessionID: labels.sessionID || '',
+                        fingerprintID: labels.fingerprintID || '',
+                        clientID: labels.clientID || '',
+                        driver: labels.driver || '',
+                        reportKey: labels.reportKey || '',
+                        sessionUUID: labels.sessionUUID || ''
+                    };
+                    
+                    browsers.push(browser);
+                    
+                } catch (error) {
+                    this._logger.error({ error, containerLine: line }, 'Error processing container information');
+                    continue;
+                }
+            }
+            
+            this._logger.info({ count: browsers.length }, 'Retrieved browsers from Docker');
+            return browsers;
+            
+        } catch (error) {
+            this._logger.error({ error }, 'Failed to get browsers from Docker');
+            throw new Error(`Failed to get browsers from Docker: ${error}`);
+        }
+    }
+
+    /**
+     * Parses Docker port mappings from the ports string
+     * Example input: "0.0.0.0:5900->5900/tcp, 0.0.0.0:4444->4444/tcp"
+     */
+    private parseDockerPorts(portsString: string): { vnc?: number; app?: number; browser?: number } {
+        const portMappings: { vnc?: number; app?: number; browser?: number } = {};
+        
+        if (!portsString || portsString === '') {
+            return portMappings;
+        }
+        
+        // Split by comma to get individual port mappings
+        const portEntries = portsString.split(',').map(p => p.trim());
+        
+        for (const entry of portEntries) {
+            // Match pattern like "0.0.0.0:5900->5900/tcp"
+            const match = entry.match(/0\.0\.0\.0:(\d+)->(\d+)\/tcp/);
+            if (match) {
+                const externalPort = parseInt(match[1]);
+                const internalPort = parseInt(match[2]);
+                
+                // Map internal ports to our browser port types
+                if (internalPort === 5900) {
+                    portMappings.vnc = externalPort;
+                } else if (internalPort === 3000) {
+                    portMappings.app = externalPort;
+                } else if (internalPort === 4444) {
+                    portMappings.browser = externalPort;
+                }
+            }
+        }
+        
+        return portMappings;
+    }
+
     public async addBrowser(browser: Browser): Promise<void> {
         this._browsers[browser.name] = browser;
     }

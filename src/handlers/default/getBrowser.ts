@@ -170,8 +170,10 @@ const handler = new Endpoint<
                     }
 
                     // Log the browser
+                    const host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+                    const launchUrl = `http://${host}:${browser.ports.app}/action/launch`;
                     const launchResponse = await axios.post(
-                        `http://localhost:${browser.ports.app}/action/launch`,
+                        launchUrl,
                         requestBody,
                         {
                             headers:{
@@ -222,8 +224,9 @@ const handler = new Endpoint<
             for (let i = 0; i < parseInt(process.env.TEST_BROWSER_MAX_TRIES || "15"); i++) {
                 try {
                     // TODO - driver should determine method of connection
+                    const host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
                     const connection = await puppeteer.connect({ 
-                        browserURL: `http://${process.env.HOSTIP}:${browser.ports.browser}` 
+                        browserURL:  `http://${host}:${browser.ports.browser}` 
                     })
                     connection.disconnect()
                     connected = true

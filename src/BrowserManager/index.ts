@@ -189,6 +189,14 @@ export default class BrowserManager {
             throw new Error("Docker is not running")
         }
 
+        // Check if we're in manage-only mode
+        const manageOnly = process.env.MANAGE_ONLY === 'true' || process.env.MANAGE_ONLY === '1';
+        if (manageOnly) {
+            this._logger.info('Running in MANAGE_ONLY mode - discovering existing containers');
+            await this.initManageMode();
+            return;
+        }
+
         // Pull Image 
         if(pullOnStart) {
             this._logger.info(`Pulling image ${this._config.browserImageName}`)
@@ -227,6 +235,60 @@ export default class BrowserManager {
             } catch (e) {}
     
             await this.initContainer(browserName, i, `${this._config.resolution.width}x${this._config.resolution.height}`, true)
+        }
+    }
+
+    private async initManageMode(): Promise<void> {
+        // Discover existing containers
+        const dockerCommand = `ps --filter name=${this._config.browserPrefix} --format "{{.Names}}" --no-trunc`;
+        
+        try {
+            const listResult = await this._docker.command(dockerCommand);
+            
+            if (!listResult.raw || listResult.raw.trim() === '') {
+                this._logger.warn('No existing browser containers found');
+                return;
+            }
+            
+            const containerNames = listResult.raw.trim().split('\n').filter((name: string) => name.trim() !== '');
+            this._logger.info({ foundContainers: containerNames }, 'Discovered existing containers');
+            
+            for (let i = 0; i < containerNames.length && i < this._config.numBrowsers; i++) {
+                const browserName = containerNames[i];
+                // Extract index from port number in container name
+                const portMatch = browserName.match(/\d+$/);
+                const port = portMatch ? parseInt(portMatch[0]) : this._config.baseBrowserPort + i;
+                const index = port - this._config.baseBrowserPort;
+                
+                this._browsers[browserName] = {
+                    name: browserName,
+                    index: index >= 0 ? index : i,
+                    isUp: false,
+                    isRemoving: false,
+                    lastUsed: -1,
+                    createdAt: Date.now(),
+                    leaseTime: -1,
+                    isDebug: false,
+                    viewport: this._config.resolution,
+                    ports: {
+                        vnc: this._config.baseBrowserVncPort + i,
+                        app: this._config.baseBrowserAppPort + i,
+                        browser: this._config.baseBrowserPort + i
+                    },
+                    labels: {},
+                    webhook: "",
+                    sessionID: "",
+                    clientID: "",
+                    fingerprintID: "",
+                    sessionUUID: "",
+                    reportKey: ""
+                }
+                
+                // Connect to existing container
+                await this.connectToBrowser(browserName, i);
+            }
+        } catch (err) {
+            this._logger.error({ error: err }, 'Failed to discover containers');
         }
     }
 
@@ -493,7 +555,8 @@ export default class BrowserManager {
      */
     private async connectToBrowser(browserName: string, index: number): Promise<void> {
         try {
-            const socket = io(`http://localhost:${this._config.baseBrowserAppPort + index}`, {
+            const host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+            const socket = io(`http://${host}:${this._config.baseBrowserAppPort + index}`, {
                 reconnection: true,
                 reconnectionAttempts: 15,
                 reconnectionDelay: 1000,
@@ -510,7 +573,10 @@ export default class BrowserManager {
 
                 // Non-blocking reinitialization after 2 seconds
                 this._browsers[browserName].isUp = false
-                if(!this._isKilling) {
+                
+                // In manage-only mode, don't recreate containers
+                const manageOnly = process.env.MANAGE_ONLY === 'true' || process.env.MANAGE_ONLY === '1';
+                if(!this._isKilling && !manageOnly) {
                     setTimeout(() => {
                         this.initContainer(
                             browserName,

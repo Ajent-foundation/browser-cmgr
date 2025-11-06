@@ -259,10 +259,11 @@ export default class BrowserManager {
                 const portMatch = browserName.match(/\d+$/);
                 const port = portMatch ? parseInt(portMatch[0]) : this._config.baseBrowserPort + i;
                 const index = port - this._config.baseBrowserPort;
+                const calculatedIndex = index >= 0 ? index : i;
                 
                 this._browsers[browserName] = {
                     name: browserName,
-                    index: index >= 0 ? index : i,
+                    index: calculatedIndex,
                     isUp: false,
                     isRemoving: false,
                     lastUsed: -1,
@@ -271,9 +272,9 @@ export default class BrowserManager {
                     isDebug: false,
                     viewport: this._config.resolution,
                     ports: {
-                        vnc: this._config.baseBrowserVncPort + i,
-                        app: this._config.baseBrowserAppPort + i,
-                        browser: this._config.baseBrowserPort + i
+                        vnc: this._config.baseBrowserVncPort + calculatedIndex,
+                        app: this._config.baseBrowserAppPort + calculatedIndex,
+                        browser: this._config.baseBrowserPort + calculatedIndex
                     },
                     labels: {},
                     webhook: "",
@@ -285,7 +286,7 @@ export default class BrowserManager {
                 }
                 
                 // Connect to existing container
-                await this.connectToBrowser(browserName, i);
+                await this.connectToBrowser(browserName, calculatedIndex);
             }
         } catch (err) {
             this._logger.error({ error: err }, 'Failed to discover containers');
@@ -555,7 +556,15 @@ export default class BrowserManager {
      */
     private async connectToBrowser(browserName: string, index: number): Promise<void> {
         try {
-            const host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+            // In manage-only mode or when BROWSER_CONNECTION_HOST is empty, use container name
+            const manageOnly = process.env.MANAGE_ONLY === 'true' || process.env.MANAGE_ONLY === '1';
+            let host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+            
+            // If BROWSER_CONNECTION_HOST is empty and we're in manage-only mode, use container name
+            if (!process.env.BROWSER_CONNECTION_HOST && manageOnly) {
+                host = browserName;
+            }
+            
             const socket = io(`http://${host}:${this._config.baseBrowserAppPort + index}`, {
                 reconnection: true,
                 reconnectionAttempts: 15,

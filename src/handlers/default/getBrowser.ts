@@ -170,7 +170,14 @@ const handler = new Endpoint<
                     }
 
                     // Log the browser
-                    const host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+                    const manageOnly = process.env.MANAGE_ONLY === 'true' || process.env.MANAGE_ONLY === '1';
+                    let host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+                    
+                    // If BROWSER_CONNECTION_HOST is empty and we're in manage-only mode, use container name
+                    if (!process.env.BROWSER_CONNECTION_HOST && manageOnly) {
+                        host = browser.name;
+                    }
+                    
                     const launchUrl = `http://${host}:${browser.ports.app}/action/launch`;
                     const launchResponse = await axios.post(
                         launchUrl,
@@ -221,12 +228,35 @@ const handler = new Endpoint<
             // Now the container has been spawned
             // Try connecting to the browser every second for 15 seconds
             let connected = false
+            const manageOnly = process.env.MANAGE_ONLY === 'true' || process.env.MANAGE_ONLY === '1';
+            let host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+            
+            // If BROWSER_CONNECTION_HOST is empty and we're in manage-only mode, use container name
+            if (!process.env.BROWSER_CONNECTION_HOST && manageOnly) {
+                host = browser.name;
+            }
+            
             for (let i = 0; i < parseInt(process.env.TEST_BROWSER_MAX_TRIES || "15"); i++) {
                 try {
-                    // TODO - driver should determine method of connection
-                    const host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+                    // Use browser-node's /system/devtools/version endpoint to get WebSocket URL
+                    // This avoids Chrome's Host header security check
+                    const devtoolsVersionUrl = `http://${host}:${browser.ports.app}/system/devtools/version`
+                    const testResponse = await axios.get(devtoolsVersionUrl, {
+                        timeout: 3000,
+                        validateStatus: (status) => status === 200
+                    })
+                    
+                    const originalWebSocketUrl = testResponse.data?.webSocketDebuggerUrl
+                    if (!originalWebSocketUrl) {
+                        throw new Error("webSocketDebuggerUrl not found in devtoolsVersion response")
+                    }
+                    
+                    const wsUrl = new URL(originalWebSocketUrl)
+                    const wsPath = wsUrl.pathname
+                    const webSocketDebuggerUrl = `ws://${host}:${browser.ports.browser}${wsPath}`
+                    
                     const connection = await puppeteer.connect({ 
-                        browserURL:  `http://${host}:${browser.ports.browser}` 
+                        browserWSEndpoint: webSocketDebuggerUrl
                     })
                     connection.disconnect()
                     connected = true
@@ -238,7 +268,11 @@ const handler = new Endpoint<
                     break
                 } catch (err) {
                     res.log.error(
-                        { browserName: browser.name },
+                        { 
+                            browserName: browser.name,
+                            error: err instanceof Error ? err.message : "Unknown Error",
+                            attempt: i + 1
+                        },
                         "COULD_NOT_CONNECT_TO_BROWSER"
                     )
                 }
@@ -280,7 +314,15 @@ const handler = new Endpoint<
         } else {
             try {
                 // Extend lease time
-                await axios.post(`http://localhost:${browser.ports.app}/action/lease`, {
+                const manageOnly = process.env.MANAGE_ONLY === 'true' || process.env.MANAGE_ONLY === '1';
+                let host = process.env.BROWSER_CONNECTION_HOST || 'localhost';
+                
+                // If BROWSER_CONNECTION_HOST is empty and we're in manage-only mode, use container name
+                if (!process.env.BROWSER_CONNECTION_HOST && manageOnly) {
+                    host = browser.name;
+                }
+                
+                await axios.post(`http://${host}:${browser.ports.app}/action/lease`, {
                     leaseTime: leaseTime
                 })
             } catch (err) {

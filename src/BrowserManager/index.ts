@@ -712,9 +712,26 @@ export default class BrowserManager {
             // Clear any timeout objects
             this.resetTimeout(browserName)
 
-            // Kill the container
-            await this._docker.command(`stop ${browserName}`);
-            this._logger.info({ browserName }, 'KILLED_CONTAINER');
+            // In MANAGE_ONLY mode, restart the container instead of stopping it
+            // This allows Docker's restart policy to handle it
+            const manageOnly = process.env.MANAGE_ONLY === 'true' || process.env.MANAGE_ONLY === '1';
+            
+            if (manageOnly) {
+                // Restart the container - Docker will handle restart policy
+                await this._docker.command(`restart ${browserName}`);
+                this._logger.info({ browserName }, 'RESTARTED_CONTAINER');
+                
+                // Wait a bit for container to restart
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Reconnect to the browser
+                const index = this._browsers[browserName].index;
+                await this.connectToBrowser(browserName, index);
+            } else {
+                // Kill the container
+                await this._docker.command(`stop ${browserName}`);
+                this._logger.info({ browserName }, 'KILLED_CONTAINER');
+            }
             
             // Clean up socket connection if it exists
             if (this._sockets[browserName]) {
@@ -722,24 +739,43 @@ export default class BrowserManager {
                 delete this._sockets[browserName];
             }
 
-            // Remove from local state
-            this._browsers[browserName] = {
-                ...this._browsers[browserName],
-                isUp: false,
-                isRemoving: false,
-                lastUsed: -1,
-                createdAt: Date.now(),
-                leaseTime: -1,
-                labels: {},
-                webhook: "",
-                sessionID: "",
-                clientID: "",
-                fingerprintID: "",
-                sessionUUID: "",
-                reportKey: ""
+            // Remove from local state - clear session data but keep browser metadata
+            if (manageOnly) {
+                // In MANAGE_ONLY mode, just clear session state (container was restarted)
+                this._browsers[browserName] = {
+                    ...this._browsers[browserName],
+                    isUp: false,
+                    isRemoving: false,
+                    lastUsed: -1,
+                    leaseTime: -1,
+                    labels: {},
+                    webhook: "",
+                    sessionID: "",
+                    clientID: "",
+                    fingerprintID: "",
+                    sessionUUID: "",
+                    reportKey: ""
+                }
+                this._logger.info({ browserName }, 'Successfully restarted browser');
+            } else {
+                // In non-MANAGE_ONLY mode, clear everything
+                this._browsers[browserName] = {
+                    ...this._browsers[browserName],
+                    isUp: false,
+                    isRemoving: false,
+                    lastUsed: -1,
+                    createdAt: Date.now(),
+                    leaseTime: -1,
+                    labels: {},
+                    webhook: "",
+                    sessionID: "",
+                    clientID: "",
+                    fingerprintID: "",
+                    sessionUUID: "",
+                    reportKey: ""
+                }
+                this._logger.info({ browserName }, 'Successfully killed browser');
             }
-
-            this._logger.info({ browserName }, 'Successfully killed browser');
         } catch (error:unknown) {
             // Ignore "no such container" errors since the container is already gone
             if(error instanceof Error) {

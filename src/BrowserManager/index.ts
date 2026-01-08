@@ -494,6 +494,7 @@ export default class BrowserManager {
             VNC_NO_SSL: 'true',
             STUNNEL_HTTP: 'true',
             REPORT_STATE: 'false',
+            ...(process.env.BROWSER_POD_IP ? { POD_IP: process.env.BROWSER_POD_IP } : {}),
             ...launchArgs  // Merge any additional launch arguments
         }
 

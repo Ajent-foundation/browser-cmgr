@@ -51,6 +51,7 @@ export const BodySchema = z.object({
         dpi: z.string()
     }).optional(),
     vncVersion: z.enum(["legacy", "new"]).optional(),
+    recordData: z.boolean().optional(),
 })
 
 // Request Query
@@ -78,7 +79,8 @@ const handler = new Endpoint<
         let {
             browserID, leaseTime, proxyServer, proxyAuth, sessionID, clientID, 
             fingerprintID, callbackURL, driver, reportKey, sessionUUID, vncMode, isPasswordProtected,
-            numberOfCameras, numberOfMicrophones, numberOfSpeakers, locale, language, timezone, platform, extensions, overrideUserAgent, screen, vncVersion
+            numberOfCameras, numberOfMicrophones, numberOfSpeakers, locale, language, timezone, platform, extensions, overrideUserAgent, screen, vncVersion,
+            recordData
         } = BodySchema.parse(req.body)
 
         if(!vncVersion) {
@@ -141,6 +143,7 @@ const handler = new Endpoint<
                     // Launch browser
                     const requestBody : Record<string, any> = {
                         leaseTime: leaseTime,
+                        sessionID: sessionID, // Pass sessionID for recording
                         screen: {
                             resolution: screen?.resolution || process.env.SCREEN_RESOLUTION || "1280x2400",
                             depth: screen?.depth || process.env.SCREEN_DEPTH || "24",
@@ -159,7 +162,8 @@ const handler = new Endpoint<
                         platform,
                         extensions,
                         overrideUserAgent,
-                        vncVersion
+                        vncVersion,
+                        recordData
                     }
                     if(req.body.proxyServer){
                         requestBody["proxy"] = {

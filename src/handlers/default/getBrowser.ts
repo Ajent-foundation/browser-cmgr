@@ -292,6 +292,7 @@ const handler = new Endpoint<
             }
 
             await res.locals.browserManager.setVncPassword(browser.name, vncPassword)
+            await res.locals.browserManager.setVncVersion(browser.name, vncVersion)
             if(req.body.isDebug){
                 await res.locals.browserManager.setDebug(browser.name, req.body.isDebug)
             }

@@ -21,6 +21,7 @@ export type Browser = {
         browser: number
     },
     vncPassword?: string;
+    vncVersion?: "legacy" | "new";
     isDebug?: boolean;
 	viewport: {
         width: number
@@ -374,6 +375,7 @@ export default class BrowserManager {
                             browser: portMappings.browser || (this._config.baseBrowserPort + index)
                         },
                         vncPassword: labels.vncPassword,
+                        vncVersion: labels.vncVersion === 'new' ? 'new' : 'legacy',
                         isDebug: labels.isDebug === 'true',
                         viewport: {
                             width: labels.viewportWidth ? parseInt(labels.viewportWidth) : this._config.resolution.width,
@@ -860,6 +862,10 @@ export default class BrowserManager {
 
     public async setVncPassword(browserName: string, vncPassword: string) {
         this._browsers[browserName].vncPassword = vncPassword
+    }
+
+    public async setVncVersion(browserName: string, vncVersion: "legacy" | "new") {
+        this._browsers[browserName].vncVersion = vncVersion
     }
 
     public async setDebug(browserName: string, isDebug: boolean) {

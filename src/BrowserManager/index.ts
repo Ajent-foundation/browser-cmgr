@@ -645,14 +645,6 @@ export default class BrowserManager {
                                 this._browsers[browserName].sessionUUID && this._browsers[browserName].sessionUUID !== ""
                             ) {
                                 try {
-                                    console.log("logging report data", {
-                                        clientID: this._browsers[browserName].clientID,
-                                        sessionUUID: this._browsers[browserName].sessionUUID,
-                                        sessionData: sessionData,
-                                        isError: isError,
-                                        error: message,
-                                        reportKey: this._browsers[browserName].reportKey,
-                                    })
                                     await axios.post(this._browsers[browserName].webhook, {
                                         clientID: this._browsers[browserName].clientID,
                                         sessionUUID: this._browsers[browserName].sessionUUID,

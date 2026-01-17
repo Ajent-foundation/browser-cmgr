@@ -74,7 +74,7 @@ export async function main(
         },
         additionalDockerArgs: additionalDockerArgs || {}
     }, Logger)
-    await browserManager.init(pullOnStart)
+    await browserManager.init(process.env.SHOULD_PULL_IMAGE ? process.env.SHOULD_PULL_IMAGE === 'true' : pullOnStart)
 
     // VI- Init Express
     const EXPRESS_PORT= expressVars.getExpressPort()
